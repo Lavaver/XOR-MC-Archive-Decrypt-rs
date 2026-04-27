@@ -1,0 +1,36 @@
+[package]
+name = "mcsaveencrypt-rs"
+version = "4.1.0"
+edition = "2024"
+authors = ["Lavaver", "HTMonkeyG (Original Node.js version)"]
+description = "A Rust-based tool for encrypting and decrypting Minecraft saves, designed specifically for the NetEase version of Minecraft"
+readme = "README.md"
+repository = "https://github.com/Lavaver/XOR-MC-Archive-Decrypt-rs/"
+license = "MIT"
+license-file = "LICENSE"
+keywords = ["util", "tool", "xor", "minecraft", "decrypt"]
+
+[profile.release]
+codegen-units = 2
+opt-level = "z"
+lto = true
+panic = "abort"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+colored = "3.1.1"
+crossterm = "0.27"
+hex = "0.4.3"
+indicatif = "0.18.4"
+regex = "1.12.3"
+tar = "0.4.45"
+zip = "8.5.1"
+walkdir = "2.5.0"
+tokio = { version = "1.51.1", features = ["full"] }
+rust-i18n = "4"
+log = "0.4.29"
+log4rs = "1.4.0"
+futures = "0.3.32"
+anyhow = "1.0.102"
+shen-nbt5 = "0.4.6"
+sys-locale = "0.3.2"
