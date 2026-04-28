@@ -1,15 +1,16 @@
 ﻿use anyhow::Result;
 use std::path::Path;
 use tokio::task::spawn_blocking;
+use crate::utils::cli::ui;
 
 /// 将目录打包为 tar 文件
-pub async fn tar_directory(src: &Path, dst: &Path) -> Result<()> {
+async fn tar_directory(src: &Path, dst: &Path) -> Result<()> {
     let src = src.to_owned();
     let dst = dst.to_owned();
     spawn_blocking(move || -> Result<()> {
         let file = std::fs::File::create(&dst)?;
         let mut builder = tar::Builder::new(file);
-        builder.append_dir_all(".", &src)?;
+        builder.append_dir_all("../..", &src)?;
         builder.finish()?;
         Ok(())
     })
@@ -18,7 +19,7 @@ pub async fn tar_directory(src: &Path, dst: &Path) -> Result<()> {
 }
 
 /// 将目录打包为 .mcworld 文件（ZIP 格式）
-pub async fn zip_directory(src: &Path, dst: &Path) -> Result<()> {
+async fn zip_directory(src: &Path, dst: &Path) -> Result<()> {
     let src = src.to_owned();
     let dst = dst.to_owned();
     spawn_blocking(move || -> Result<()> {
@@ -42,5 +43,19 @@ pub async fn zip_directory(src: &Path, dst: &Path) -> Result<()> {
         Ok(())
     })
         .await??;
+    Ok(())
+}
+
+pub async fn pack_mcworld_output(dir: &Path) -> Result<()> {
+    let mcw_path = dir.with_extension("mcworld");
+    zip_directory(dir, &mcw_path).await?;
+    ui::println_info(&t!("pack_mcworld", path = mcw_path.display().to_string()));
+    Ok(())
+}
+
+pub async fn pack_tar_output(dir: &Path) -> Result<()> {
+    let tar_path = dir.with_extension("tar");
+    tar_directory(dir, &tar_path).await?;
+    ui::println_info(&t!("pack_tar", path = tar_path.display().to_string()));
     Ok(())
 }

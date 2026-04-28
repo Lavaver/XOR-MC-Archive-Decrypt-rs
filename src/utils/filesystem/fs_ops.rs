@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use tokio::fs;
 use shen_nbt5::{NbtValue, nbt_version};
 
-use crate::crypto::is_encrypted;
-use crate::ui;
+use crate::cryptography::crypto::is_encrypted;
+use crate::utils::cli::ui;
 use rust_i18n::t;
 
 /// Check whether the directory contains the `level.dat` file and the `db` subdirectory
