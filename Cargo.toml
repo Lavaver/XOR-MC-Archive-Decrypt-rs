@@ -1,6 +1,6 @@
 [package]
 name = "mcsaveencrypt-rs"
-version = "4.1.0"
+version = "4.2.0"
 edition = "2024"
 authors = ["Lavaver", "HTMonkeyG (Original Node.js version)"]
 description = "A Rust-based tool for encrypting and decrypting Minecraft saves, designed specifically for the NetEase version of Minecraft"
