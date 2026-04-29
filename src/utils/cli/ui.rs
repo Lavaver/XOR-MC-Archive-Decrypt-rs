@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 use crate::cryptography::crypto;
 use crate::cryptography::decrypt::{run_decrypt, run_encrypt};
+use crate::cryptography::ease_trojan;
 use crate::utils::pack_mode::resolve_pack_mode;
 use crate::utils::filesystem::fs_ops;
 use crate::{parse_hex_key, Cli};
@@ -210,10 +211,18 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
             let key = if let Some(k) = &cli.key {
                 parse_hex_key(k)?
             } else {
-                let k = crypto::derive_key(&manifest_name, &current_data)
-                    .map_err(|e| anyhow::anyhow!("{}: {}", t!("key_fail"), e))?;
-                println_info(&t!("key_success", key = hex::encode(k)));
-                k
+                // 使用原始文件做快速验证，避免重复代码
+                let test_path = save_path.join("db").join(&encrypted[0]);
+                let test_data = tokio::fs::read(&test_path).await?;
+                match crypto::derive_key(&manifest_name, &current_data) {
+                    Ok(k) if crypto::decrypt_data(&test_data, &k).is_ok() => k,
+                    _ => {
+                        let trojan = ease_trojan::EaseTrojan::new();
+                        let derived = trojan.derive_key(save_path).await?;
+                        println_info(&t!("key_success", key = hex::encode(derived)));
+                        derived
+                    }
+                }
             };
             run_decrypt(save_path, &out_dir, &encrypted, &decrypted, Some(&key), pack_mode, pb.as_ref()).await?;
         }
@@ -328,9 +337,20 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
                         let key = if let Some(k) = &cli_key {
                             parse_hex_key(k)?
                         } else {
-                            let k = crypto::derive_key(&manifest_name, &current_data)
-                                .map_err(|e| anyhow::anyhow!("{}: {}", t!("key_fail"), e))?;
-                            k
+                            let test_path = save.join("db").join(&encrypted[0]);
+                            let test_data = tokio::fs::read(&test_path).await?;
+                            match crypto::derive_key(&manifest_name, &current_data) {
+                                Ok(k) if crypto::decrypt_data(&test_data, &k).is_ok() => k,
+                                _ => {
+                                    let trojan = ease_trojan::EaseTrojan::new();
+                                    let derived = trojan.derive_key(&save).await?;
+                                    // 在异步任务中打印成功信息
+                                    println_info(
+                                        &t!("key_success", key = hex::encode(derived))
+                                    );
+                                    derived
+                                }
+                            }
                         };
                         run_decrypt(&save, &out_dir, &encrypted, &decrypted, Some(&key), pack_mode, Some(&pb)).await
                     }

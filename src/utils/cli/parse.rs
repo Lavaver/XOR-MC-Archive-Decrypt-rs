@@ -14,6 +14,10 @@ pub struct Cli {
     #[arg(short = 'b', long)]
     pub batch: bool,
 
+    /// Start software update
+    #[arg(short = 'S', long)]
+    pub sync: bool,
+
     /// Operation: decrypt(0) or encrypt(1) or specific (2,3)
     #[arg(short = 'm', long)]
     pub mode: Option<String>,

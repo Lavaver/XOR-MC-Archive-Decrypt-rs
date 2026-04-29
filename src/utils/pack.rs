@@ -1,4 +1,4 @@
-﻿use anyhow::Result;
+﻿use anyhow::{Context, Result};
 use std::path::Path;
 use tokio::task::spawn_blocking;
 use crate::utils::cli::ui;
@@ -7,11 +7,27 @@ use crate::utils::cli::ui;
 async fn tar_directory(src: &Path, dst: &Path) -> Result<()> {
     let src = src.to_owned();
     let dst = dst.to_owned();
+
     spawn_blocking(move || -> Result<()> {
-        let file = std::fs::File::create(&dst)?;
+        let canonical_src = std::fs::canonicalize(&src)
+            .context(t!("canonicalize_source_directory_fail"))?;
+
+        if !canonical_src.is_dir() {
+            anyhow::bail!(t!("not_a_directory_fail"));
+        }
+
+        let folder_name = canonical_src
+            .file_name()
+            .context(t!("determine_folder_name_fail"))?;
+
+        let file = std::fs::File::create(&dst)
+            .context(t!("create_destination_file_fail"))?;
         let mut builder = tar::Builder::new(file);
-        builder.append_dir_all("../..", &src)?;
+        builder
+            .append_dir_all(folder_name, &canonical_src)
+            .context(t!("append_directory_fail"))?;
         builder.finish()?;
+
         Ok(())
     })
         .await??;
