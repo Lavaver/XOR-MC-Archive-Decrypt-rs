@@ -1,4 +1,5 @@
 ﻿use std::path::Path;
+use std::time::Instant;
 use indicatif::ProgressBar;
 use tokio::fs;
 use crate::cryptography::crypto;
@@ -15,6 +16,7 @@ pub async fn run_decrypt(
     key: Option<&[u8; 8]>,
     pack_mode: PackMode,
     pb: Option<&ProgressBar>,
+    details: bool,
 ) -> anyhow::Result<()> {
     if encrypted.is_empty() {
         if let Some(pb) = pb {
@@ -26,33 +28,62 @@ pub async fn run_decrypt(
     prepare_output_dir(out_dir).await?;
     fs_ops::copy_dir_all(src, out_dir).await?;
 
-    for fname in encrypted {
-        if let Some(pb) = pb {
-            pb.set_message(format!("{}", fname));
+    let start = Instant::now();
+    let mut total_bytes = 0u64;
+    let total_files = encrypted.len();
+
+    for (idx, fname) in encrypted.iter().enumerate() {
+        if !details {
+            if let Some(pb) = pb {
+                pb.set_message(format!("{}", fname));
+            }
         }
         let file_path = out_dir.join("db").join(fname);
         let data = fs::read(&file_path).await?;
         let dec = crypto::decrypt_data(&data, key.unwrap_or(&[0u8; 8]))?;
         fs::write(&file_path, &dec).await?;
-        if let Some(pb) = pb {
+
+        if details {
+            total_bytes += data.len() as u64;
+            let elapsed = start.elapsed().as_secs_f64();
+            let speed_mb = if elapsed > 0.0 {
+                total_bytes as f64 / elapsed / 1_000_000.0
+            } else {
+                0.0
+            };
+            eprintln!(
+                "[{}/{}] {} ({}: {:.2} MB/s, {}: {:.2} MB)",
+                idx + 1,
+                total_files,
+                fname,
+                t!("disk_speed"),
+                speed_mb,
+                t!("total_files"),
+                total_bytes as f64 / 1_000_000.0
+            );
+        } else if let Some(pb) = pb {
             pb.inc(1);
         }
     }
 
-    // 合理性检查
-    ui::println_info(&t!("avail_test"));
-    let ldb_ok = fs_ops::ldb_sanity_check(out_dir).await;
-    let nbt_ok = fs_ops::nbt_sanity_check(out_dir).await;
+    if !details {
+        // 合理性检查仅在非详情模式下输出（避免混淆）
+        ui::println_info(&t!("avail_test"));
+        let ldb_ok = fs_ops::ldb_sanity_check(out_dir).await;
+        let nbt_ok = fs_ops::nbt_sanity_check(out_dir).await;
 
-    if ldb_ok && nbt_ok {
-        ui::println_info(&t!("avail_pass"));
+        if ldb_ok && nbt_ok {
+            ui::println_info(&t!("avail_pass"));
+        } else {
+            if !ldb_ok {
+                ui::println_error(&t!("avail_fail"));
+            }
+            if !nbt_ok {
+                ui::println_error(&t!("nbt_fail"));
+            }
+        }
     } else {
-        if !ldb_ok {
-            ui::println_error(&t!("avail_fail"));
-        }
-        if !nbt_ok {
-            ui::println_error(&t!("nbt_fail"));
-        }
+        eprintln!(); // 空行分隔详情和最终信息
     }
 
     match pack_mode {
@@ -76,6 +107,7 @@ pub async fn run_encrypt(
     key: Option<&[u8; 8]>,
     pack_mode: PackMode,
     pb: Option<&ProgressBar>,
+    details: bool,
 ) -> anyhow::Result<()> {
     if decrypted.is_empty() {
         if let Some(pb) = pb {
@@ -87,17 +119,49 @@ pub async fn run_encrypt(
     prepare_output_dir(out_dir).await?;
     fs_ops::copy_dir_all(src, out_dir).await?;
 
-    for fname in decrypted {
-        if let Some(pb) = pb {
-            pb.set_message(format!("{}", fname));
+    let start = Instant::now();
+    let mut total_bytes = 0u64;
+    let total_files = decrypted.len();
+
+    for (idx, fname) in decrypted.iter().enumerate() {
+        if !details {
+            if let Some(pb) = pb {
+                pb.set_message(format!("{}", fname));
+            }
         }
         let file_path = out_dir.join("db").join(fname);
         let data = fs::read(&file_path).await?;
         let enc = crypto::encrypt_data(&data, key.unwrap_or(&[0u8; 8]));
         fs::write(&file_path, &enc).await?;
-        if let Some(pb) = pb {
+
+        if details {
+            total_bytes += data.len() as u64;
+            let elapsed = start.elapsed().as_secs_f64();
+            let speed_mb = if elapsed > 0.0 {
+                total_bytes as f64 / elapsed / 1_000_000.0
+            } else {
+                0.0
+            };
+            eprintln!(
+                "[{}/{}] {} ({}: {:.2} MB/s, {}: {:.2} MB)",
+                idx + 1,
+                total_files,
+                fname,
+                t!("disk_speed"),
+                speed_mb,
+                t!("total_files"),
+                total_bytes as f64 / 1_000_000.0
+            );
+        } else if let Some(pb) = pb {
             pb.inc(1);
         }
+    }
+
+    if !details {
+        // 加密后不需要做 sanity 检查（仅解密时验证）
+        // 但为了保持一致性，此处留空
+    } else {
+        eprintln!();
     }
 
     match pack_mode {

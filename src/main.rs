@@ -14,7 +14,9 @@ use std::path::PathBuf;
 use crate::network::software_update;
 use crate::utils::cli::parse::Cli;
 use crate::utils::cli::ui::{self, process_batch, process_single};
-use utils::filesystem::fs_ops;
+use crate::utils::chunks::scan::{scan_chunks, infer_encrypted_chunks};
+use crate::utils::chunks::overview::print_overview;
+use crate::utils::filesystem::fs_ops;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -50,7 +52,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // 正常解密流程
+    // 正常解密流程 - 获取路径
     let base_path = if let Some(p) = &cli.path {
         PathBuf::from(p)
     } else {
@@ -61,6 +63,27 @@ async fn main() -> Result<()> {
     if !base_path.exists() {
         ui::println_error(&t!("invalid_path"));
         anyhow::bail!(t!("invalid_path"));
+    }
+
+    // 区块扫描模式
+    if cli.chunks {
+        let result = scan_chunks(&base_path).await?;
+        print_overview(&result);
+
+        let encrypted_chunks = infer_encrypted_chunks(&result.plain);
+        if !encrypted_chunks.is_empty() {
+            println!("\n{}", t!("chunk_derived_encrypted_count"));
+            for pos in &encrypted_chunks {
+                let dim_name = match pos.dim {
+                    0 => "Overworld",
+                    1 => "Nether",
+                    2 => "End",
+                    _ => "Unknown",
+                };
+                println!("  ({}, {}) [{}]", pos.x, pos.z, dim_name);
+            }
+        }
+        return Ok(());
     }
 
     let is_single = if cli.single {

@@ -193,8 +193,8 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
         _ => unreachable!(),
     };
 
-    // 创建进度条（如果有文件需要处理）
-    let pb = if !file_list.is_empty() {
+    // 创建进度条（如果有文件需要处理且不启用详情模式）
+    let pb = if !cli.details && !file_list.is_empty() {
         Some(create_progress_bar(file_list.len() as u64, &progress_msg_raw))
     } else {
         None
@@ -202,10 +202,10 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
 
     match op {
         0 => {
-            run_decrypt(save_path, &out_dir, &encrypted, &decrypted, None, pack_mode, pb.as_ref()).await?;
+            run_decrypt(save_path, &out_dir, &encrypted, &decrypted, None, pack_mode, pb.as_ref(), cli.details).await?;
         }
         1 => {
-            run_encrypt(save_path, &out_dir, &decrypted, None, pack_mode, pb.as_ref()).await?;
+            run_encrypt(save_path, &out_dir, &decrypted, None, pack_mode, pb.as_ref(), cli.details).await?;
         }
         2 => {
             let key = if let Some(k) = &cli.key {
@@ -224,7 +224,7 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
                     }
                 }
             };
-            run_decrypt(save_path, &out_dir, &encrypted, &decrypted, Some(&key), pack_mode, pb.as_ref()).await?;
+            run_decrypt(save_path, &out_dir, &encrypted, &decrypted, Some(&key), pack_mode, pb.as_ref(), cli.details).await?;
         }
         3 => {
             let key = if let Some(k) = &cli.key {
@@ -233,7 +233,7 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
                 let msg = t!("invalid_key");
                 anyhow::bail!(msg);
             };
-            run_encrypt(save_path, &out_dir, &decrypted, Some(&key), pack_mode, pb.as_ref()).await?;
+            run_encrypt(save_path, &out_dir, &decrypted, Some(&key), pack_mode, pb.as_ref(), cli.details).await?;
         }
         _ => unreachable!(),
     }
@@ -261,7 +261,7 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
 
     let selected = select_saves(saves_with_names).await?;
     if selected.is_empty() {
-        println_warn("No saves selected.");
+        println_warn(t!("no_saves_selected").as_ref());
         return Ok(());
     }
 
@@ -279,6 +279,8 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
 
     // 确定统一的打包模式
     let pack_mode = resolve_pack_mode(&cli.pack_mode).await?;
+    let cli_details = cli.details;
+    let cli_key = cli.key.clone();
 
     let m = create_multi_progress();
     let mut tasks = Vec::new();
@@ -319,32 +321,71 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
             continue;
         }
 
-        let pb = add_progress_bar(
-            &m,
-            file_count,
-            format!("{}", save.file_name().unwrap().to_string_lossy()),
-        );
+        // 如果启用详情模式，则不创建进度条
+        let pb = if cli_details {
+            None
+        } else {
+            Some(add_progress_bar(
+                &m,
+                file_count,
+                format!("{}", save.file_name().unwrap().to_string_lossy()),
+            ))
+        };
+
+        // 如果启用详情模式，先打印存档名称作为分隔
+        if cli_details {
+            eprintln!("\n>>> {}: {} <<<", t!("process_save"), save.file_name().unwrap().to_string_lossy());
+        }
 
         let cli_mode = op;
-        let cli_key = cli.key.clone();
+        let cli_key = cli_key.clone();
+        let pack_mode = pack_mode;
+        let save_path = save;
+        let out_dir_path = out_dir;
+        let encrypted_list = encrypted;
+        let decrypted_list = decrypted;
+        let manifest_name = manifest_name;
+        let current_data = current_data;
 
         tasks.push(tokio::spawn(async move {
             let result = async {
                 match cli_mode {
-                    0 => run_decrypt(&save, &out_dir, &encrypted, &decrypted, None, pack_mode, Some(&pb)).await,
-                    1 => run_encrypt(&save, &out_dir, &decrypted, None, pack_mode, Some(&pb)).await,
+                    0 => {
+                        run_decrypt(
+                            &save_path,
+                            &out_dir_path,
+                            &encrypted_list,
+                            &decrypted_list,
+                            None,
+                            pack_mode,
+                            pb.as_ref(),
+                            cli_details,
+                        )
+                            .await
+                    }
+                    1 => {
+                        run_encrypt(
+                            &save_path,
+                            &out_dir_path,
+                            &decrypted_list,
+                            None,
+                            pack_mode,
+                            pb.as_ref(),
+                            cli_details,
+                        )
+                            .await
+                    }
                     2 => {
                         let key = if let Some(k) = &cli_key {
                             parse_hex_key(k)?
                         } else {
-                            let test_path = save.join("db").join(&encrypted[0]);
+                            let test_path = save_path.join("db").join(&encrypted_list[0]);
                             let test_data = tokio::fs::read(&test_path).await?;
                             match crypto::derive_key(&manifest_name, &current_data) {
                                 Ok(k) if crypto::decrypt_data(&test_data, &k).is_ok() => k,
                                 _ => {
                                     let trojan = ease_trojan::EaseTrojan::new();
-                                    let derived = trojan.derive_key(&save).await?;
-                                    // 在异步任务中打印成功信息
+                                    let derived = trojan.derive_key(&save_path).await?;
                                     println_info(
                                         &t!("key_success", key = hex::encode(derived))
                                     );
@@ -352,7 +393,17 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
                                 }
                             }
                         };
-                        run_decrypt(&save, &out_dir, &encrypted, &decrypted, Some(&key), pack_mode, Some(&pb)).await
+                        run_decrypt(
+                            &save_path,
+                            &out_dir_path,
+                            &encrypted_list,
+                            &decrypted_list,
+                            Some(&key),
+                            pack_mode,
+                            pb.as_ref(),
+                            cli_details,
+                        )
+                            .await
                     }
                     3 => {
                         let key = if let Some(k) = &cli_key {
@@ -361,16 +412,29 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
                             let msg = t!("invalid_key");
                             anyhow::bail!(msg);
                         };
-                        run_encrypt(&save, &out_dir, &decrypted, Some(&key), pack_mode, Some(&pb)).await
+                        run_encrypt(
+                            &save_path,
+                            &out_dir_path,
+                            &decrypted_list,
+                            Some(&key),
+                            pack_mode,
+                            pb.as_ref(),
+                            cli_details,
+                        )
+                            .await
                     }
                     _ => unreachable!(),
                 }
             };
             if let Err(e) = result.await {
-                pb.finish_with_message("Failed");
-                println_error(&format!("Error processing {}: {}", save.file_name().unwrap().to_string_lossy(), e));
+                if let Some(pb) = pb.as_ref() {
+                    pb.finish_with_message("Failed");
+                }
+                println_error(&format!("Error processing {}: {}", save_path.file_name().unwrap().to_string_lossy(), e));
             } else {
-                pb.finish_with_message("Done");
+                if let Some(pb) = pb.as_ref() {
+                    pb.finish_with_message("Done");
+                }
             }
             Ok::<_, anyhow::Error>(())
         }));
@@ -382,6 +446,8 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
         }
     }
 
-    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    if !cli_details {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
     Ok(())
 }

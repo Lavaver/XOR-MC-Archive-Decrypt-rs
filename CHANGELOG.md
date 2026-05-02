@@ -1,5 +1,13 @@
 # 更新日志
 
+## [4.2.2](https://github.com/Lavaver/XOR-MC-Archive-Decrypt-rs/tree/v4.2.2) - 2026-05-03
+
+### 新增
+- 新增 | 区块状态概览
+- 新增 | `--details` 参数，用于在处理过程中查阅详情
+> [!NOTE]
+> 这会禁用进度条与校验信息。不过对于想要查阅详细信息的人来说有进度条反而起反作用。禁用校验信息是刻意的。
+
 ## [4.2.1](https://github.com/Lavaver/XOR-MC-Archive-Decrypt-rs/tree/v4.2.1) - 2026-04-30
 
 > [!TIP]

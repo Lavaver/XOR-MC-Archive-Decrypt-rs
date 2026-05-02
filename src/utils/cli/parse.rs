@@ -18,6 +18,10 @@ pub struct Cli {
     #[arg(short = 'S', long)]
     pub sync: bool,
 
+    /// Scan chunks and show overview
+    #[arg(short = 'C', long)]
+    pub chunks: bool,
+
     /// Operation: decrypt(0) or encrypt(1) or specific (2,3)
     #[arg(short = 'm', long)]
     pub mode: Option<String>,
@@ -33,4 +37,8 @@ pub struct Cli {
     /// Pack mode: copy, tar, mcworld (or 0,1,2)
     #[arg(short = 'P', long)]
     pub pack_mode: Option<String>,
+
+    /// Show detailed progress information (files queued, processed, disk speed)
+    #[arg(long)]
+    pub details: bool,
 }
