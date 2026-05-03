@@ -72,6 +72,32 @@ pub async fn read_line(prompt: &str) -> Result<String> {
     Ok(line.trim().to_string())
 }
 
+/// 提示用户输入导出目录，默认值为原逻辑下的上级目录
+pub async fn prompt_output_dir(default: &Path) -> Result<PathBuf> {
+    println_info(&t!("prompt_output_dir", default = default.display().to_string()));
+    println_info(&t!("prompt_output_dir_hint"));
+    let input = read_line("> ").await?;
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        Ok(default.to_path_buf())
+    } else {
+        Ok(PathBuf::from(trimmed))
+    }
+}
+
+/// 批量模式下询问基础输出目录，返回 `None` 表示使用默认规则
+pub async fn prompt_output_base_dir() -> Result<Option<PathBuf>> {
+    println_info(&t!("prompt_output_base_dir"));
+    println_info(&t!("prompt_output_base_dir_hint"));
+    let input = read_line("> ").await?;
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(PathBuf::from(trimmed)))
+    }
+}
+
 /// TUI 多存档选择菜单
 pub async fn select_saves(saves: Vec<(PathBuf, String)>) -> Result<Vec<PathBuf>> {
     if saves.is_empty() {
@@ -170,12 +196,15 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
     };
 
     let suffix = if op == 0 || op == 2 { "_Dec" } else { "_Enc" };
-    let out_dir = if let Some(o) = &cli.output {
-        PathBuf::from(o)
-    } else {
+    let default_out_dir = {
         let parent = save_path.parent().unwrap_or(Path::new("../../.."));
         let name = save_path.file_name().unwrap_or_default();
         parent.join(format!("{}{}", name.to_string_lossy(), suffix))
+    };
+    let out_dir = if let Some(o) = &cli.output {
+        PathBuf::from(o)
+    } else {
+        prompt_output_dir(&default_out_dir).await?
     };
 
     let db_path = save_path.join("db");
@@ -282,14 +311,23 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
     let cli_details = cli.details;
     let cli_key = cli.key.clone();
 
+    // 询问基础输出目录（若未使用 -o）
+    let base_output: Option<PathBuf> = if cli.output.is_some() {
+        cli.output.clone().map(PathBuf::from)
+    } else {
+        prompt_output_base_dir().await?
+    };
+
     let m = create_multi_progress();
     let mut tasks = Vec::new();
 
     for save in selected {
         let suffix = if op == 0 || op == 2 { "_Dec" } else { "_Enc" };
-        let out_dir = if let Some(o) = &cli.output {
-            PathBuf::from(o).join(save.file_name().unwrap())
+        let out_dir = if let Some(ref base) = base_output {
+            // 指定了基础目录，存档同名子目录
+            base.join(save.file_name().unwrap())
         } else {
+            // 未指定，使用原默认规则：上级目录加后缀
             let parent = save.parent().unwrap_or(Path::new("../../.."));
             parent.join(format!(
                 "{}{}",

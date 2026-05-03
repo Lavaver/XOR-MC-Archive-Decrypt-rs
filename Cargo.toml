@@ -1,11 +1,11 @@
 [package]
-name = "mcsaveencrypt-rs"
-version = "4.2.2"
+name = "crypt-dew-world"
+version = "4.2.3"
 edition = "2024"
 authors = ["Lavaver", "HTMonkeyG (Original Node.js version)"]
 description = "A Rust-based tool for encrypting and decrypting Minecraft saves, designed specifically for the NetEase version of Minecraft"
 readme = "README.md"
-repository = "https://github.com/Lavaver/XOR-MC-Archive-Decrypt-rs/"
+repository = "https://github.com/Lavaver/Crypt-Dew-World/"
 license = "MIT"
 keywords = ["util", "tool", "xor", "minecraft", "decrypt"]
 
@@ -36,5 +36,3 @@ self-replace = "1.5.0"
 ureq = {version = "3", features = ["gzip"]}
 serde_json = "1.0.149"
 semver = "1.0.28"
-toml = "1"
-serde = {version = "1.0.228", features = ["derive"]}

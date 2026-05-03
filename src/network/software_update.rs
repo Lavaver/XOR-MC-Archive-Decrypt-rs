@@ -40,7 +40,7 @@ fn fetch_latest_release_info_sync(owner: &str, repo: &str) -> Result<(String, St
 /// 检查更新（异步接口）
 pub async fn check_for_updates() -> Result<Option<String>> {
     let current_version = semver::Version::parse(env!("CARGO_PKG_VERSION"))
-        .expect("Current version is not semver");   // 编译时自动获取，无需手动写死
+        .expect(t!("is_not_semver").as_ref());   // 编译时自动获取，无需手动写死
 
     let (tag, _) = tokio::task::spawn_blocking(move || {
         fetch_latest_release_info_sync("Lavaver", "XOR-MC-Archive-Decrypt-rs")
@@ -48,7 +48,7 @@ pub async fn check_for_updates() -> Result<Option<String>> {
 
     let remote_version_str = tag.strip_prefix('v').unwrap_or(&tag);
     let remote_version = semver::Version::parse(remote_version_str)
-        .context("Remote version is not semver")?;
+        .context(t!("is_not_semver"))?;
 
     if remote_version > current_version {
         Ok(Some(remote_version.to_string()))
@@ -72,12 +72,12 @@ pub async fn update(pb: Option<ProgressBar>) -> Result<()> {
         ui::println_info(&t!("downloading_version", version = &new_version));
 
         let (_tag, exe_url) = tokio::task::spawn_blocking(move || {
-            fetch_latest_release_info_sync("Lavaver", "XOR-MC-Archive-Decrypt-rs")
+            fetch_latest_release_info_sync("Lavaver", "Crypt-Dew-World")
         })
             .await??;
 
         let temp_dir = std::env::temp_dir();
-        let temp_path = temp_dir.join("mcsaveencrypt-rs.exe");
+        let temp_path = temp_dir.join("crypt-dew-world.exe");
 
         // 发起下载请求，获取响应
         let resp = ureq::get(&exe_url).call()?;
@@ -112,13 +112,16 @@ pub async fn update(pb: Option<ProgressBar>) -> Result<()> {
             pb.set_position(downloaded);
         }
 
-        pb.finish_with_message("Download complete, applying update...");
+        pb.finish_with_message(t!("downloaded_and_use_patch"));
 
         let temp_path_clone = temp_path.clone();
         tokio::task::spawn_blocking(move || self_replace::self_replace(&temp_path_clone))
             .await??;
 
         let _ = tokio::fs::remove_file(&temp_path).await;
+
+        ui::println_info(&t!("please_restart_application"));
+
         Ok(())
     }
     #[cfg(not(target_os = "windows"))]

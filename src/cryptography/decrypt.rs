@@ -92,9 +92,16 @@ pub async fn run_decrypt(
         }
         PackMode::Tar => {
             pack_tar_output(out_dir).await?;
+            // 清理临时目录
+            if let Err(e) = fs_ops::remove_dir_all(out_dir).await {
+                ui::println_warn(&format!("{}: {}", t!("cleanup_temp_fail"), e));
+            }
         }
         PackMode::McWorld => {
             pack_mcworld_output(out_dir).await?;
+            if let Err(e) = fs_ops::remove_dir_all(out_dir).await {
+                ui::println_warn(&format!("{}: {}", t!("cleanup_temp_fail"), e));
+            }
         }
     }
     Ok(())
@@ -170,9 +177,15 @@ pub async fn run_encrypt(
         }
         PackMode::Tar => {
             pack_tar_output(out_dir).await?;
+            if let Err(e) = fs_ops::remove_dir_all(out_dir).await {
+                ui::println_warn(&format!("{}: {}", t!("cleanup_temp_fail"), e));
+            }
         }
         PackMode::McWorld => {
             pack_mcworld_output(out_dir).await?;
+            if let Err(e) = fs_ops::remove_dir_all(out_dir).await {
+                ui::println_warn(&format!("{}: {}", t!("cleanup_temp_fail"), e));
+            }
         }
     }
     Ok(())

@@ -46,7 +46,7 @@ $ cargo run
 ## CLI 指令参数
 
 ```bash
-mcsaveencrypt-rs.exe [OPTIONS] [PATH]
+crypt-dew-world.exe [OPTIONS] [PATH]
 ```
 
 ### Arguments 形参
