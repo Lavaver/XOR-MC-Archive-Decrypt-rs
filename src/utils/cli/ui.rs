@@ -21,8 +21,6 @@ use crate::{parse_hex_key, Cli};
 
 use rust_i18n::t;
 
-// ── 输出辅助 ──────────────────────────────────────────────────────────────
-
 pub fn println_info(msg: &str) {
     println!("{}", msg.bright_blue().bold());
 }
@@ -34,8 +32,6 @@ pub fn println_error(msg: &str) {
 pub fn println_warn(msg: &str) {
     println!("{}", msg.bright_yellow());
 }
-
-// ── 进度条 ────────────────────────────────────────────────────────────────
 
 pub fn create_progress_bar(len: u64, msg: &str) -> ProgressBar {
     let pb = ProgressBar::new(len);
@@ -65,7 +61,6 @@ pub fn add_progress_bar(multi: &MultiProgress, len: u64, msg: String) -> Progres
     pb
 }
 
-// ── 输入函数 ──────────────────────────────────────────────────────────────
 
 /// 普通读取一行（保持不变，用于简单输入）
 pub async fn read_line(prompt: &str) -> Result<String> {
@@ -77,8 +72,6 @@ pub async fn read_line(prompt: &str) -> Result<String> {
     reader.read_line(&mut line).await?;
     Ok(line.trim().to_string())
 }
-
-// ── 导出目录交互 ──────────────────────────────────────────────────────────
 
 /// 使用 inquire::Text 实现带 placeholder 和默认值的输入
 /// 直接回车返回默认路径，输入自定义内容则使用输入值
@@ -114,8 +107,6 @@ pub async fn prompt_output_base_dir() -> Result<Option<PathBuf>> {
         Ok(Some(PathBuf::from(trimmed)))
     }
 }
-
-// ── 多存档选择菜单（保持不变） ──────────────────────────────────────────────
 
 pub async fn select_saves(saves: Vec<(PathBuf, String)>) -> Result<Vec<PathBuf>> {
     if saves.is_empty() {
@@ -189,8 +180,6 @@ pub async fn select_saves(saves: Vec<(PathBuf, String)>) -> Result<Vec<PathBuf>>
     }
     Ok(result)
 }
-
-// ── 单存档处理 ─────────────────────────────────────────────────────────────
 
 pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
     println_info(&t!("test_integrity"));
@@ -305,8 +294,6 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
 
     Ok(())
 }
-
-// ── 批量存档处理（不变） ────────────────────────────────────────────────────
 
 pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
     let sub_dirs = fs_ops::find_save_dirs(base_path).await?;
