@@ -1,5 +1,19 @@
 # 更新日志
 
+## [4.2.4](https://github.com/Lavaver/Crypt-Dew-World/tree/v4.2.4) - 2026-05-04
+
+### 变更
+- 优化 | 交互式输入导出目录的提示变的更友好。在你未输入路径时，现在会以灰色字体显示默认情况下的导出目录。
+> [!NOTE]
+> 如果安装了国际版 Minecraft BE，且是仅复制模式，则默认情况下的导出目录将直接通往如下目录：
+> ```text
+> C:\Users\[你的用户名]\AppData\Roaming\Minecraft Bedrock\Users\[19 位用户 ID]\games\com.mojang\minecraftWorlds
+> ```
+> 届时直接打开国际版即可食用。如果你是早期 UWP 版的 Minecraft BE，你应该升级你的游戏，因为从 1.21 开始，Microsoft Studios 对游戏分发做出了改变，**即从原 UWP 版分发修改为 exe 版分发**，这同时也带来了存档存储路径的修改。**请注意：工具并不会去识别这是否为 UWP 还是 exe 版，因为要考虑到总体非平台特定性（您可能为了方便会在 Android 上构建代码然后在移动端处理加密），以及便携性（Windows Crate 带来的负担太重）**。
+
+- 修复 | 输入选择操作在同一行的问题
+- 优化 | 当输入请求提示符具有默认候选时会以 PlaceHolder 样式显示在提示符中
+
 ## [4.2.3](https://github.com/Lavaver/Crypt-Dew-World/tree/v4.2.3) - 2026-05-03
 
 > [!CAUTION]
