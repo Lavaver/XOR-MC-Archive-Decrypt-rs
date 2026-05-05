@@ -61,8 +61,6 @@ pub fn add_progress_bar(multi: &MultiProgress, len: u64, msg: String) -> Progres
     pb
 }
 
-
-/// 普通读取一行（保持不变，用于简单输入）
 pub async fn read_line(prompt: &str) -> Result<String> {
     use tokio::io::{AsyncBufReadExt, BufReader};
     print!("{}", prompt);
@@ -73,20 +71,14 @@ pub async fn read_line(prompt: &str) -> Result<String> {
     Ok(line.trim().to_string())
 }
 
-/// 使用 inquire::Text 实现带 placeholder 和默认值的输入
-/// 直接回车返回默认路径，输入自定义内容则使用输入值
 pub async fn prompt_output_dir(default: &Path) -> Result<PathBuf> {
     let default_str = default.display().to_string();
-
-    // 将翻译文本提前绑定到 String，确保生命周期足够
     let message = t!("prompt_output_dir");
     let help = t!("prompt_output_dir_hint");
-
     let input = Text::new(&message)
         .with_placeholder(&default_str)
         .with_help_message(&help)
         .prompt()?;
-
     let trimmed = input.trim();
     if trimmed.is_empty() {
         Ok(default.to_path_buf())
@@ -95,7 +87,6 @@ pub async fn prompt_output_dir(default: &Path) -> Result<PathBuf> {
     }
 }
 
-/// 批量模式下的基础输出目录询问
 pub async fn prompt_output_base_dir() -> Result<Option<PathBuf>> {
     println_info(&t!("prompt_output_base_dir"));
     println_info(&t!("prompt_output_base_dir_hint"));
@@ -198,7 +189,6 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
             _ => anyhow::bail!(t!("invalid_op")),
         }
     } else {
-        // 交互式选择操作：提示与输入分行
         println!("{}", t!("select_operation"));
         let answer = read_line("> ").await?;
         answer.parse::<usize>()?
@@ -206,27 +196,56 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
 
     let pack_mode = resolve_pack_mode(&cli.pack_mode).await?;
     let suffix = if op == 0 || op == 2 { "_Dec" } else { "_Enc" };
-    let default_out_dir = {
-        if pack_mode == PackMode::Copy && check_mcbe_install::detect_minecraft_be() {
-            if let Some(worlds_root) = check_mcbe_install::minecraft_worlds_root() {
-                let save_name = save_path.file_name().unwrap_or_default();
-                worlds_root.join(save_name)
-            } else {
-                let parent = save_path.parent().unwrap_or(Path::new("../../.."));
-                let name = save_path.file_name().unwrap_or_default();
-                parent.join(format!("{}{}", name.to_string_lossy(), suffix))
-            }
-        } else {
-            let parent = save_path.parent().unwrap_or(Path::new("../../.."));
-            let name = save_path.file_name().unwrap_or_default();
-            parent.join(format!("{}{}", name.to_string_lossy(), suffix))
-        }
-    };
+    let save_name = save_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    let archive_name = format!("{}{}", save_name, suffix);
 
-    let out_dir = if let Some(o) = &cli.output {
+    // 获取用户期望的输出目录
+    let user_out = if let Some(o) = &cli.output {
         PathBuf::from(o)
     } else {
+        let default_out_dir = {
+            if pack_mode == PackMode::Copy && check_mcbe_install::detect_minecraft_be() {
+                if let Some(worlds_root) = check_mcbe_install::minecraft_worlds_root() {
+                    worlds_root.join(&save_name)
+                } else {
+                    let parent = save_path.parent().unwrap_or(Path::new("../../.."));
+                    parent.join(&archive_name)
+                }
+            } else {
+                let parent = save_path.parent().unwrap_or(Path::new("../../.."));
+                parent.join(&archive_name)
+            }
+        };
         prompt_output_dir(&default_out_dir).await?
+    };
+
+    // 根据打包模式决定最终输出目录和归档基础路径
+    let (final_out_dir, archive_base): (PathBuf, Option<PathBuf>) = match pack_mode {
+        PackMode::Copy => {
+            let mut target = user_out.clone();
+            if target.exists() {
+                if !fs_ops::is_dir_empty(&target).await? {
+                    // 目录非空 → 在内部创建子目录
+                    target = target.join(&archive_name);
+                }
+                // 目录为空则直接用 target
+            }
+            tokio::fs::create_dir_all(&target).await?;
+            (target, None)
+        }
+        PackMode::Tar | PackMode::McWorld => {
+            // 创建临时解密目录（用完会清理）
+            let temp = tempfile::tempdir()?.keep();
+            // 确保用户输出目录存在
+            tokio::fs::create_dir_all(&user_out).await?;
+            // 归档文件将放在 user_out/archive_name.扩展名
+            let base = user_out.join(&archive_name);
+            (temp, Some(base))
+        }
     };
 
     let db_path = save_path.join("db");
@@ -249,10 +268,31 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
     // 执行加解密
     match op {
         0 => {
-            run_decrypt(save_path, &out_dir, &encrypted, &decrypted, None, pack_mode, pb.as_ref(), cli.details).await?;
+            run_decrypt(
+                save_path,
+                &final_out_dir,
+                &encrypted,
+                &decrypted,
+                None,
+                pack_mode,
+                pb.as_ref(),
+                cli.details,
+                archive_base.as_deref(),
+            )
+                .await?;
         }
         1 => {
-            run_encrypt(save_path, &out_dir, &decrypted, None, pack_mode, pb.as_ref(), cli.details).await?;
+            run_encrypt(
+                save_path,
+                &final_out_dir,
+                &decrypted,
+                None,
+                pack_mode,
+                pb.as_ref(),
+                cli.details,
+                archive_base.as_deref(),
+            )
+                .await?;
         }
         2 => {
             let key = if let Some(k) = &cli.key {
@@ -270,7 +310,18 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
                     }
                 }
             };
-            run_decrypt(save_path, &out_dir, &encrypted, &decrypted, Some(&key), pack_mode, pb.as_ref(), cli.details).await?;
+            run_decrypt(
+                save_path,
+                &final_out_dir,
+                &encrypted,
+                &decrypted,
+                Some(&key),
+                pack_mode,
+                pb.as_ref(),
+                cli.details,
+                archive_base.as_deref(),
+            )
+                .await?;
         }
         3 => {
             let key = if let Some(k) = &cli.key {
@@ -278,7 +329,17 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
             } else {
                 anyhow::bail!(t!("invalid_key"));
             };
-            run_encrypt(save_path, &out_dir, &decrypted, Some(&key), pack_mode, pb.as_ref(), cli.details).await?;
+            run_encrypt(
+                save_path,
+                &final_out_dir,
+                &decrypted,
+                Some(&key),
+                pack_mode,
+                pb.as_ref(),
+                cli.details,
+                archive_base.as_deref(),
+            )
+                .await?;
         }
         _ => unreachable!(),
     }
@@ -286,7 +347,7 @@ pub async fn process_single(save_path: &Path, cli: &Cli) -> Result<()> {
     // 如果输出直接指向 Minecraft 存档目录，提示重启游戏
     if check_mcbe_install::detect_minecraft_be() {
         if let Some(worlds_root) = check_mcbe_install::minecraft_worlds_root() {
-            if out_dir.parent() == Some(&worlds_root) {
+            if final_out_dir.parent() == Some(&worlds_root) {
                 println_warn(&t!("please_restart_game"));
             }
         }
@@ -302,7 +363,11 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
     }
     let mut saves_with_names = Vec::new();
     for dir in sub_dirs {
-        let name = dir.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let name = dir
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         let level_name = fs_ops::read_level_name(&dir).await;
         let display = if level_name.is_empty() {
             name.clone()
@@ -332,22 +397,57 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
     } else {
         prompt_output_base_dir().await?
     };
+
     let m = create_multi_progress();
     let mut tasks = Vec::new();
     for save in selected {
+        let save_name = save
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         let suffix = if op == 0 || op == 2 { "_Dec" } else { "_Enc" };
-        let out_dir = if let Some(ref base) = base_output {
-            base.join(save.file_name().unwrap())
+        let archive_name = format!("{}{}", save_name, suffix);
+
+        // 每个存档的输出目录逻辑
+        let user_out = if let Some(ref base) = base_output {
+            base.join(&save_name)
         } else {
             let parent = save.parent().unwrap_or(Path::new("../../.."));
-            parent.join(format!("{}{}", save.file_name().unwrap().to_string_lossy(), suffix))
+            parent.join(&archive_name)
         };
+
+        let (final_out_dir, archive_base): (PathBuf, Option<PathBuf>) = match pack_mode {
+            PackMode::Copy => {
+                let mut target = user_out.clone();
+                if target.exists() {
+                    if !fs_ops::is_dir_empty(&target).await? {
+                        target = target.join(&archive_name);
+                    }
+                }
+                tokio::fs::create_dir_all(&target).await?;
+                (target, None)
+            }
+            PackMode::Tar | PackMode::McWorld => {
+                let temp = match tempfile::tempdir() {
+                    Ok(td) => td.keep(),
+                    Err(e) => {
+                        println_error(&format!("创建临时目录失败: {}", e));
+                        continue;
+                    }
+                };
+                tokio::fs::create_dir_all(&user_out).await?;
+                let base = user_out.join(&archive_name);
+                (temp, Some(base))
+            }
+        };
+
         let db_path = save.join("db");
         let scan_result = fs_ops::scan_db(&db_path).await;
         let (encrypted, decrypted, manifest_name, current_data) = match scan_result {
             Ok(res) => res,
             Err(e) => {
-                println_error(&format!("Scan error for {}: {}", save.display(), e));
+                println_error(&format!("扫描错误 {}: {}", save.display(), e));
                 continue;
             }
         };
@@ -355,7 +455,11 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
             0 => encrypted.len() as u64,
             1 => decrypted.len() as u64,
             2 | 3 => {
-                if op == 2 { encrypted.len() as u64 } else { decrypted.len() as u64 }
+                if op == 2 {
+                    encrypted.len() as u64
+                } else {
+                    decrypted.len() as u64
+                }
             }
             _ => unreachable!(),
         };
@@ -365,25 +469,54 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
         let pb = if cli_details {
             None
         } else {
-            Some(add_progress_bar(&m, file_count, format!("{}", save.file_name().unwrap().to_string_lossy())))
+            Some(add_progress_bar(&m, file_count, format!("{}", save_name)))
         };
         if cli_details {
-            eprintln!("\n>>> {}: {} <<<", t!("process_save"), save.file_name().unwrap().to_string_lossy());
+            eprintln!(
+                "\n>>> {}: {} <<<",
+                t!("process_save"),
+                save_name
+            );
         }
         let cli_mode = op;
         let cli_key = cli_key.clone();
         let pack_mode = pack_mode;
         let save_path = save;
-        let out_dir_path = out_dir;
         let encrypted_list = encrypted;
         let decrypted_list = decrypted;
         let manifest_name = manifest_name;
         let current_data = current_data;
+
         tasks.push(tokio::spawn(async move {
             let result = async {
                 match cli_mode {
-                    0 => run_decrypt(&save_path, &out_dir_path, &encrypted_list, &decrypted_list, None, pack_mode, pb.as_ref(), cli_details).await,
-                    1 => run_encrypt(&save_path, &out_dir_path, &decrypted_list, None, pack_mode, pb.as_ref(), cli_details).await,
+                    0 => {
+                        run_decrypt(
+                            &save_path,
+                            &final_out_dir,
+                            &encrypted_list,
+                            &decrypted_list,
+                            None,
+                            pack_mode,
+                            pb.as_ref(),
+                            cli_details,
+                            archive_base.as_deref(),
+                        )
+                            .await
+                    }
+                    1 => {
+                        run_encrypt(
+                            &save_path,
+                            &final_out_dir,
+                            &decrypted_list,
+                            None,
+                            pack_mode,
+                            pb.as_ref(),
+                            cli_details,
+                            archive_base.as_deref(),
+                        )
+                            .await
+                    }
                     2 => {
                         let key = if let Some(k) = &cli_key {
                             parse_hex_key(k)?
@@ -395,29 +528,61 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
                                 _ => {
                                     let trojan = ease_trojan::EaseTrojan::new();
                                     let derived = trojan.derive_key(&save_path).await?;
-                                    println_info(&t!("key_success", key = hex::encode(derived)));
+                                    println_info(&t!(
+                                        "key_success",
+                                        key = hex::encode(derived)
+                                    ));
                                     derived
                                 }
                             }
                         };
-                        run_decrypt(&save_path, &out_dir_path, &encrypted_list, &decrypted_list, Some(&key), pack_mode, pb.as_ref(), cli_details).await
-                    },
+                        run_decrypt(
+                            &save_path,
+                            &final_out_dir,
+                            &encrypted_list,
+                            &decrypted_list,
+                            Some(&key),
+                            pack_mode,
+                            pb.as_ref(),
+                            cli_details,
+                            archive_base.as_deref(),
+                        )
+                            .await
+                    }
                     3 => {
                         let key = if let Some(k) = &cli_key {
                             parse_hex_key(k)?
                         } else {
                             anyhow::bail!(t!("invalid_key"));
                         };
-                        run_encrypt(&save_path, &out_dir_path, &decrypted_list, Some(&key), pack_mode, pb.as_ref(), cli_details).await
-                    },
+                        run_encrypt(
+                            &save_path,
+                            &final_out_dir,
+                            &decrypted_list,
+                            Some(&key),
+                            pack_mode,
+                            pb.as_ref(),
+                            cli_details,
+                            archive_base.as_deref(),
+                        )
+                            .await
+                    }
                     _ => unreachable!(),
                 }
             };
             if let Err(e) = result.await {
-                if let Some(pb) = pb.as_ref() { pb.finish_with_message("Failed"); }
-                println_error(&format!("Error processing {}: {}", save_path.file_name().unwrap().to_string_lossy(), e));
+                if let Some(pb) = pb.as_ref() {
+                    pb.finish_with_message("失败");
+                }
+                println_error(&format!(
+                    "处理错误 {}: {}",
+                    save_path.file_name().unwrap().to_string_lossy(),
+                    e
+                ));
             } else {
-                if let Some(pb) = pb.as_ref() { pb.finish_with_message("Done"); }
+                if let Some(pb) = pb.as_ref() {
+                    pb.finish_with_message("完成");
+                }
             }
             Ok::<_, anyhow::Error>(())
         }));

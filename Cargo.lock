@@ -376,7 +376,7 @@ dependencies = [
 
 [[package]]
 name = "crypt-dew-world"
-version = "4.2.4"
+version = "4.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -394,6 +394,7 @@ dependencies = [
  "shen-nbt5",
  "sys-locale",
  "tar",
+ "tempfile",
  "tokio",
  "ureq",
  "walkdir",

@@ -4,7 +4,7 @@ use indicatif::ProgressBar;
 use tokio::fs;
 use crate::cryptography::crypto;
 use crate::utils::cli::ui;
-use crate::utils::filesystem::{fs_ops, dir_setting::prepare_output_dir};
+use crate::utils::filesystem::{fs_ops, dir_setting::ensure_dir};
 use crate::utils::pack::{pack_mcworld_output, pack_tar_output};
 use crate::utils::pack_mode::PackMode;
 
@@ -17,6 +17,7 @@ pub async fn run_decrypt(
     pack_mode: PackMode,
     pb: Option<&ProgressBar>,
     details: bool,
+    archive_base: Option<&Path>,
 ) -> anyhow::Result<()> {
     if encrypted.is_empty() {
         if let Some(pb) = pb {
@@ -25,7 +26,7 @@ pub async fn run_decrypt(
         return Ok(());
     }
 
-    prepare_output_dir(out_dir).await?;
+    ensure_dir(out_dir).await?;
     fs_ops::copy_dir_all(src, out_dir).await?;
 
     let start = Instant::now();
@@ -91,14 +92,23 @@ pub async fn run_decrypt(
             ui::println_info(&t!("dec_success", path = out_dir.display().to_string()));
         }
         PackMode::Tar => {
-            pack_tar_output(out_dir).await?;
-            // 清理临时目录
+            let tar_path = if let Some(base) = archive_base {
+                base.with_extension("tar")
+            } else {
+                out_dir.with_extension("tar")
+            };
+            pack_tar_output(out_dir, &tar_path).await?;
             if let Err(e) = fs_ops::remove_dir_all(out_dir).await {
                 ui::println_warn(&format!("{}: {}", t!("cleanup_temp_fail"), e));
             }
         }
         PackMode::McWorld => {
-            pack_mcworld_output(out_dir).await?;
+            let mcw_path = if let Some(base) = archive_base {
+                base.with_extension("mcworld")
+            } else {
+                out_dir.with_extension("mcworld")
+            };
+            pack_mcworld_output(out_dir, &mcw_path).await?;
             if let Err(e) = fs_ops::remove_dir_all(out_dir).await {
                 ui::println_warn(&format!("{}: {}", t!("cleanup_temp_fail"), e));
             }
@@ -115,6 +125,7 @@ pub async fn run_encrypt(
     pack_mode: PackMode,
     pb: Option<&ProgressBar>,
     details: bool,
+    archive_base: Option<&Path>,
 ) -> anyhow::Result<()> {
     if decrypted.is_empty() {
         if let Some(pb) = pb {
@@ -123,7 +134,7 @@ pub async fn run_encrypt(
         return Ok(());
     }
 
-    prepare_output_dir(out_dir).await?;
+    ensure_dir(out_dir).await?;
     fs_ops::copy_dir_all(src, out_dir).await?;
 
     let start = Instant::now();
@@ -166,7 +177,6 @@ pub async fn run_encrypt(
 
     if !details {
         // 加密后不需要做 sanity 检查（仅解密时验证）
-        // 但为了保持一致性，此处留空
     } else {
         eprintln!();
     }
@@ -176,13 +186,23 @@ pub async fn run_encrypt(
             ui::println_info(&t!("enc_success", path = out_dir.display().to_string()));
         }
         PackMode::Tar => {
-            pack_tar_output(out_dir).await?;
+            let tar_path = if let Some(base) = archive_base {
+                base.with_extension("tar")
+            } else {
+                out_dir.with_extension("tar")
+            };
+            pack_tar_output(out_dir, &tar_path).await?;
             if let Err(e) = fs_ops::remove_dir_all(out_dir).await {
                 ui::println_warn(&format!("{}: {}", t!("cleanup_temp_fail"), e));
             }
         }
         PackMode::McWorld => {
-            pack_mcworld_output(out_dir).await?;
+            let mcw_path = if let Some(base) = archive_base {
+                base.with_extension("mcworld")
+            } else {
+                out_dir.with_extension("mcworld")
+            };
+            pack_mcworld_output(out_dir, &mcw_path).await?;
             if let Err(e) = fs_ops::remove_dir_all(out_dir).await {
                 ui::println_warn(&format!("{}: {}", t!("cleanup_temp_fail"), e));
             }

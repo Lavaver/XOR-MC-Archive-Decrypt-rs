@@ -3,10 +3,10 @@ use std::path::Path;
 use tokio::task::spawn_blocking;
 use crate::utils::cli::ui;
 
-/// 将目录打包为 tar 文件
-async fn tar_directory(src: &Path, dst: &Path) -> Result<()> {
-    let src = src.to_owned();
-    let dst = dst.to_owned();
+/// 将目录打包为 tar 文件，output_file 为完整路径（含 .tar）
+pub async fn pack_tar_output(src_dir: &Path, output_file: &Path) -> Result<()> {
+    let src = src_dir.to_owned();
+    let dst = output_file.to_owned();
 
     spawn_blocking(move || -> Result<()> {
         let canonical_src = std::fs::canonicalize(&src)
@@ -31,17 +31,18 @@ async fn tar_directory(src: &Path, dst: &Path) -> Result<()> {
         Ok(())
     })
         .await??;
+
+    ui::println_info(&format!("已打包为 tar：{}", output_file.display()));
     Ok(())
 }
 
-/// 将目录打包为 .mcworld 文件（ZIP 格式）
-async fn zip_directory(src: &Path, dst: &Path) -> Result<()> {
-    let src = src.to_owned();
-    let dst = dst.to_owned();
+/// 将目录打包为 .mcworld 文件，output_file 为完整路径（含 .mcworld）
+pub async fn pack_mcworld_output(src_dir: &Path, output_file: &Path) -> Result<()> {
+    let src = src_dir.to_owned();
+    let dst = output_file.to_owned();
     spawn_blocking(move || -> Result<()> {
         let file = std::fs::File::create(&dst)?;
         let mut writer = zip::ZipWriter::new(file);
-        // 消除类型推断：显式指定 FileOptions<()>
         let options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated)
             .unix_permissions(0o644);
@@ -59,19 +60,7 @@ async fn zip_directory(src: &Path, dst: &Path) -> Result<()> {
         Ok(())
     })
         .await??;
-    Ok(())
-}
 
-pub async fn pack_mcworld_output(dir: &Path) -> Result<()> {
-    let mcw_path = dir.with_extension("mcworld");
-    zip_directory(dir, &mcw_path).await?;
-    ui::println_info(&t!("pack_mcworld", path = mcw_path.display().to_string()));
-    Ok(())
-}
-
-pub async fn pack_tar_output(dir: &Path) -> Result<()> {
-    let tar_path = dir.with_extension("tar");
-    tar_directory(dir, &tar_path).await?;
-    ui::println_info(&t!("pack_tar", path = tar_path.display().to_string()));
+    ui::println_info(&format!("已打包为 mcworld：{}", output_file.display()));
     Ok(())
 }

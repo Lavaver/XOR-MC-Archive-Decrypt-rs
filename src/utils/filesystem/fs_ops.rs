@@ -179,11 +179,9 @@ pub async fn nbt_sanity_check(save_path: &Path) -> bool {
     let level_dat_path = save_path.join("level.dat");
     if let Ok(data) = fs::read(&level_dat_path).await {
         if data.len() <= 8 {
-            return false; // 文件太小，不合法
+            return false;
         }
-        // 按基岩版格式跳过前8字节头部
         let nbt_data = data[8..].to_vec();
-        // 克隆数据以满足 from_binary 对可变性的要求
         if NbtValue::from_binary::<nbt_version::BedrockDisk>(&mut nbt_data.clone()).is_err() {
             return false;
         }
@@ -197,10 +195,8 @@ pub async fn nbt_sanity_check(save_path: &Path) -> bool {
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
             if let Some(fname) = path.file_name().and_then(|n| n.to_str()) {
-                // 根据基岩版文档，BlockEntity 和 Entity 数据是典型的小端序NBT结构
                 if fname.starts_with("BlockEntity") || fname.starts_with("Entity") {
                     if let Ok(mut data) = fs::read(&path).await {
-                        // 基岩版db内数据是直接的小端序NBT
                         if NbtValue::from_binary::<nbt_version::BedrockDisk>(&mut data).is_err() {
                             return false;
                         }
@@ -210,4 +206,13 @@ pub async fn nbt_sanity_check(save_path: &Path) -> bool {
         }
     }
     true
+}
+
+/// 判断目录是否为空（不存在也视为空）
+pub async fn is_dir_empty(path: &Path) -> Result<bool> {
+    if !path.is_dir() {
+        return Ok(true);
+    }
+    let mut entries = fs::read_dir(path).await?;
+    Ok(entries.next_entry().await?.is_none())
 }

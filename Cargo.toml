@@ -1,6 +1,6 @@
 [package]
 name = "crypt-dew-world"
-version = "4.2.4"
+version = "4.3.0"
 edition = "2024"
 authors = ["Lavaver", "HTMonkeyG (Original Node.js version)"]
 description = "A Rust-based tool for encrypting and decrypting Minecraft saves, designed specifically for the NetEase version of Minecraft"
@@ -15,6 +15,9 @@ opt-level = "z"
 lto = true
 panic = "abort"
 strip = true
+
+# The Cargo.toml was hoisted aboard by Crates (Crane).
+# cargo [ˈkɑːɡəʊ] n. (船或飞机装载的) 货物；Rust 语言中的一个包管理器与构建工具。在四六级和考研真题中出现了 9 次
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -37,3 +40,4 @@ ureq = {version = "3", features = ["gzip"]}
 serde_json = "1.0.149"
 semver = "1.0.28"
 inquire = "0.9.4"
+tempfile = "3.27.0"
