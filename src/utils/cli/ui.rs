@@ -6,7 +6,7 @@ use crossterm::{
     execute,
     terminal::{self, ClearType},
 };
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
 use inquire::Text;
 use std::io::{stdout, Write};
 use std::path::{Path, PathBuf};
@@ -20,6 +20,34 @@ use crate::utils::filesystem::fs_ops;
 use crate::{parse_hex_key, Cli};
 
 use rust_i18n::t;
+
+use std::time::Duration;
+use std::fmt::Write as FmtWrite;
+
+fn format_duration_us(d: Duration) -> String {
+    if d.is_zero() {
+        return t!("not_a_number").to_string();
+    }
+    let total_secs = d.as_secs();
+    let nanos = d.subsec_nanos();
+    
+    let total_micros = nanos / 1000;
+    let millis = total_micros / 1000;
+    let micros = total_micros % 1000;
+
+    let mut buf = String::new();
+    let mins = total_secs / 60;
+    let secs = total_secs % 60;
+    if mins > 0 {
+        write!(buf, "{}m ", mins).unwrap();
+    }
+    // 秒总是显示，即使为0
+    write!(buf, "{}s ", secs).unwrap();
+    // 毫秒和微秒始终显示
+    write!(buf, "{}ms ", millis).unwrap();
+    write!(buf, "{}μs", micros).unwrap();
+    buf
+}
 
 pub fn println_info(msg: &str) {
     println!("{}", msg.bright_blue().bold());
@@ -35,12 +63,17 @@ pub fn println_warn(msg: &str) {
 
 pub fn create_progress_bar(len: u64, msg: &str) -> ProgressBar {
     let pb = ProgressBar::new(len);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{msg} [{bar:30.cyan/blue}] {pos}/{len}")
-            .unwrap()
-            .progress_chars("=>-"),
-    );
+    let style = ProgressStyle::default_bar()
+        .template("{msg} [{bar:30.cyan/blue}] {pos}/{len} [{elapsed_us} / {eta_us}]")
+        .unwrap()
+        .progress_chars("=>-")
+        .with_key("elapsed_us", |state: &ProgressState, w: &mut dyn std::fmt::Write| {
+            let _ = write!(w, "{}", format_duration_us(state.elapsed()));
+        })
+        .with_key("eta_us", |state: &ProgressState, w: &mut dyn std::fmt::Write| {
+            let _ = write!(w, "{}", format_duration_us(state.eta()));
+        });
+    pb.set_style(style);
     pb.set_message(msg.to_string());
     pb
 }
@@ -51,12 +84,17 @@ pub fn create_multi_progress() -> MultiProgress {
 
 pub fn add_progress_bar(multi: &MultiProgress, len: u64, msg: String) -> ProgressBar {
     let pb = multi.add(ProgressBar::new(len));
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{msg} [{bar:30.cyan/blue}] {pos}/{len}")
-            .unwrap()
-            .progress_chars("=>-"),
-    );
+    let style = ProgressStyle::default_bar()
+        .template("{msg} [{bar:30.cyan/blue}] {pos}/{len} [{elapsed_us} / {eta_us}]")
+        .unwrap()
+        .progress_chars("=>-")
+        .with_key("elapsed_us", |state: &ProgressState, w: &mut dyn std::fmt::Write| {
+            let _ = write!(w, "{}", format_duration_us(state.elapsed()));
+        })
+        .with_key("eta_us", |state: &ProgressState, w: &mut dyn std::fmt::Write| {
+            let _ = write!(w, "{}", format_duration_us(state.eta()));
+        });
+    pb.set_style(style);
     pb.set_message(msg);
     pb
 }
@@ -593,7 +631,7 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
         }
     }
     if !cli_details {
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
     }
     Ok(())
 }

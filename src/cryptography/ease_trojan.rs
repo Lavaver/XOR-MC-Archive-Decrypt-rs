@@ -177,3 +177,59 @@ impl EaseTrojan {
         Ok(())
     }
 }
+
+
+pub fn decrypt_current_layer2(current_encrypted: &[u8], manifest_name: &str) -> Result<Vec<u8>> {
+    for version in &[1u32, 0u32] {
+        let mut plaintext_guess = Vec::with_capacity(current_encrypted.len());
+        plaintext_guess.extend_from_slice(&version.to_le_bytes());
+        plaintext_guess.extend_from_slice(manifest_name.as_bytes());
+        plaintext_guess.resize(current_encrypted.len(), 0u8); // 剩余填零
+
+        let key_stream: Vec<u8> = current_encrypted
+            .iter()
+            .zip(plaintext_guess.iter())
+            .map(|(c, p)| c ^ p)
+            .collect();
+
+        for key_len in &[8, 16] {
+            if key_stream.len() < *key_len {
+                continue;
+            }
+            let key = &key_stream[..*key_len];
+
+            let decrypted: Vec<u8> = current_encrypted
+                .iter()
+                .enumerate()
+                .map(|(i, &c)| c ^ key[i % key_len])
+                .collect();
+
+            if is_valid_current_plaintext(&decrypted, manifest_name) {
+                return Ok(decrypted);
+            }
+        }
+    }
+
+    anyhow::bail!(t!("current_layer2_decrypt_fail"))
+}
+
+fn is_valid_current_plaintext(data: &[u8], expected_name: &str) -> bool {
+    if data.len() < 4 {
+        return false;
+    }
+    let version = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+    if version > 100 {
+        return false;
+    }
+    let name_bytes = &data[4..];
+    let expected_bytes = expected_name.as_bytes();
+    if name_bytes.len() < expected_bytes.len() {
+        return false;
+    }
+
+    if &name_bytes[..expected_bytes.len()] != expected_bytes {
+        return false;
+    }
+
+    name_bytes[expected_bytes.len()..].iter().all(|&b| b == 0)
+}

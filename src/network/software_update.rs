@@ -43,7 +43,7 @@ pub async fn check_for_updates() -> Result<Option<String>> {
         .expect(t!("is_not_semver").as_ref());   // 编译时自动获取，无需手动写死
 
     let (tag, _) = tokio::task::spawn_blocking(move || {
-        fetch_latest_release_info_sync("Lavaver", "XOR-MC-Archive-Decrypt-rs")
+        fetch_latest_release_info_sync("Lavaver", "Crypt-Dew-World")
     }).await??;
 
     let remote_version_str = tag.strip_prefix('v').unwrap_or(&tag);
