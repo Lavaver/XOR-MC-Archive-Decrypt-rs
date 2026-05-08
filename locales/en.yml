@@ -1,4 +1,4 @@
-welcome: "Welcome to Crypt Dew World v4.3.1"
+welcome: "Welcome to Crypt Dew World v4.3.2"
 tip_path: "Enter the path to the save folder (containing level.dat):"
 target_path: "Target directory: %{path}"
 invalid_path: "Target does not exist or is not a folder."

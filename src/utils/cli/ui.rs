@@ -1,28 +1,31 @@
 ﻿use anyhow::Result;
 use colored::Colorize;
+use inquire::Text;
+use std::io::{stdout, Write};
+use std::path::{Path, PathBuf};
+use crate::cryptography::{crypto, ease_trojan};
+use crate::cryptography::decrypt::{run_decrypt, run_encrypt};
+use crate::utils::check_mcbe_install;
+use crate::{parse_hex_key, Cli};
+use rust_i18n::t;
+use std::time::Duration;
+use std::fmt::Write as FmtWrite;
+
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{self, ClearType},
 };
-use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
-use inquire::Text;
-use std::io::{stdout, Write};
-use std::path::{Path, PathBuf};
 
-use crate::cryptography::crypto;
-use crate::cryptography::decrypt::{run_decrypt, run_encrypt};
-use crate::cryptography::ease_trojan;
-use crate::utils::check_mcbe_install;
-use crate::utils::pack_mode::{resolve_pack_mode, PackMode};
-use crate::utils::filesystem::fs_ops;
-use crate::{parse_hex_key, Cli};
+use indicatif::{MultiProgress,
+                ProgressBar,
+                ProgressState,
+                ProgressStyle};
 
-use rust_i18n::t;
-
-use std::time::Duration;
-use std::fmt::Write as FmtWrite;
+use crate::utils::filesystem::{fs_ops,
+                               pack_mode::resolve_pack_mode,
+                               pack_mode::PackMode};
 
 fn format_duration_us(d: Duration) -> String {
     if d.is_zero() {

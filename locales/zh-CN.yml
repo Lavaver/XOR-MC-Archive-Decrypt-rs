@@ -1,4 +1,4 @@
-welcome: "欢迎访问 Crypt Dew World v4.3.1"
+welcome: "欢迎访问 Crypt Dew World v4.3.2"
 tip_path: "请输入目标存档文件夹路径（包含 level.dat）："
 target_path: "目标目录：%{path}"
 invalid_path: "路径不存在或不是文件夹。"

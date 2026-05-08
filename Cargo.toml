@@ -1,8 +1,35 @@
 [package]
 name = "crypt-dew-world"
-version = "4.3.1"
+version = "4.3.2"
 edition = "2024"
-authors = ["Lavaver", "HTMonkeyG (Original Node.js version)"]
+authors = ["Lavaver (This version)",
+    "HTMonkeyG (Original Node.js version)",
+    "Rust stdlib (Director)",
+    "Cargo (Co-producer)",
+    "x86_64-pc-windows-msvc (Starring)",
+    "mod.rs (Props)",
+    "RustRover (Extras)",
+    "My Lenovo Xiaoxin Pro 16 IAH10 (2025 Edition)",
+    "Intel Core Ultra 5 225H (Lead actor)",
+    "32GB LPDDR5X onboard memory (field-upgradable)",
+    "Intel Wi-Fi 7 BE200 320MHz: The 穿墙辐射超级无敌打胎王 (Shipping)",
+    "Western Digital SN730 OEM Enterprise 512GB SSD (formatted to ReFS)",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "All memes that appeared on Bilibili from 2024 to 2026",
+    "Note: crates.io has a maximum of 5 keywords",
+    "fn main() {}",
+    "println!(\"Hello, World!\");",
+    "::std::io::_print(::std::format_args_nl!(\"Hello, World!\"));",
+    "#[tokio::main]",
+    "#[cfg(target_os = \"windows\")]",
+    "Result<()>",
+    "Ok()",
+    "let msg_val = \"invalid_path\";",
+    "let msg_key = &msg_val;",
+    "if let Some(translated) = crate::_rust_i18n_try_translate(&rust_i18n::locale(), &msg_key) { translated.into() } else { rust_i18n::CowStr::from(msg_val).into_inner() }",
+    "And you"]
 description = "A Rust-based tool for encrypting and decrypting Minecraft saves, designed specifically for the NetEase version of Minecraft"
 readme = "README.md"
 repository = "https://github.com/Lavaver/Crypt-Dew-World"

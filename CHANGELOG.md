@@ -1,5 +1,13 @@
 # 更新日志
 
+## [4.3.2](https://github.com/Lavaver/Crypt-Dew-World/tree/v4.3.2) - 2026-05-09
+
+### 新增
+- 新增 | 异步 IO 原语引擎（Asynchronous I/O Primitive engine, AIPe）
+> [!NOTE]
+> 异步 IO 原语引擎（Asynchronous I/O Primitive engine, AIPe）是为了优化磁盘 I/O 时间的异步运行时。<br>
+> 它类似于 Rust 的并发原语概念，将一个或多个文件切成小块，Tokio 异步同时读取、写入这些块以提高 I/O 性能，并通过新的**数据块所有权句柄**概念在文件系统层面上实现无畏并发与无锁设计。
+
 ## [4.3.1](https://github.com/Lavaver/Crypt-Dew-World/tree/v4.3.1) - 2026-05-07
 
 ### 变更

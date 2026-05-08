@@ -1,12 +1,14 @@
 ﻿use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
+
 use indicatif::ProgressBar;
-use tokio::fs;
-use crate::cryptography::crypto;
+
 use crate::utils::cli::ui;
-use crate::utils::filesystem::{fs_ops, dir_setting::ensure_dir};
-use crate::utils::pack::{pack_mcworld_output, pack_tar_output};
-use crate::utils::pack_mode::PackMode;
+use crate::utils::filesystem::aipe::CryptDewIoEngine;
+use crate::utils::filesystem::{dir_setting::ensure_dir, fs_ops};
+use crate::utils::filesystem::pack::{pack_mcworld_output, pack_tar_output};
+use crate::utils::filesystem::pack_mode::PackMode;
 
 pub async fn run_decrypt(
     src: &Path,
@@ -30,45 +32,46 @@ pub async fn run_decrypt(
     fs_ops::copy_dir_all(src, out_dir).await?;
 
     let start = Instant::now();
-    let mut total_bytes = 0u64;
-    let total_files = encrypted.len();
+    let _total_files = encrypted.len();
+    let effective_key = key.unwrap_or(&[0u8; 8]).clone();
 
-    for (idx, fname) in encrypted.iter().enumerate() {
-        if !details {
-            if let Some(pb) = pb {
-                pb.set_message(format!("{}", fname));
-            }
+    // 设置进度回调
+    let progress_callback: Option<Arc<dyn Fn(u64) + Send + Sync>> = if !details {
+        if let Some(pb) = pb {
+            let pb = pb.clone();
+            Some(Arc::new(move |_processed| {
+                pb.inc(1);
+            }))
+        } else {
+            None
         }
-        let file_path = out_dir.join("db").join(fname);
-        let data = fs::read(&file_path).await?;
-        let dec = crypto::decrypt_data(&data, key.unwrap_or(&[0u8; 8]))?;
-        fs::write(&file_path, &dec).await?;
+    } else {
+        None
+    };
 
-        if details {
-            total_bytes += data.len() as u64;
-            let elapsed = start.elapsed().as_secs_f64();
-            let speed_mb = if elapsed > 0.0 {
-                total_bytes as f64 / elapsed / 1_000_000.0
-            } else {
-                0.0
-            };
-            eprintln!(
-                "[{}/{}] {} ({}: {:.2} MB/s, {}: {:.2} MB)",
-                idx + 1,
-                total_files,
-                fname,
-                t!("disk_speed"),
-                speed_mb,
-                t!("total_files"),
-                total_bytes as f64 / 1_000_000.0
-            );
-        } else if let Some(pb) = pb {
-            pb.inc(1);
-        }
+    // 使用异步 IO 原语引擎解密
+    let engine = CryptDewIoEngine::new();
+    engine
+        .decrypt_files(src, out_dir, encrypted, effective_key, progress_callback)
+        .await?;
+
+    // 细节输出（仅在 details 模式下）
+    if details {
+        let total_bytes = 0u64; // 引擎已输出统计，此处不再重复
+        let elapsed = start.elapsed().as_secs_f64();
+        let speed_mb = if elapsed > 0.0 {
+            total_bytes as f64 / elapsed / 1_000_000.0
+        } else {
+            0.0
+        };
+        eprintln!(
+            "Decryption details: {:.2} MB/s (average)",
+            speed_mb
+        );
     }
 
+    // 合理性检查
     if !details {
-        // 合理性检查仅在非详情模式下输出（避免混淆）
         ui::println_info(&t!("avail_test"));
         let ldb_ok = fs_ops::ldb_sanity_check(out_dir).await;
         let nbt_ok = fs_ops::nbt_sanity_check(out_dir).await;
@@ -84,9 +87,10 @@ pub async fn run_decrypt(
             }
         }
     } else {
-        eprintln!(); // 空行分隔详情和最终信息
+        eprintln!();
     }
 
+    // 打包输出
     match pack_mode {
         PackMode::Copy => {
             ui::println_info(&t!("dec_success", path = out_dir.display().to_string()));
@@ -138,49 +142,37 @@ pub async fn run_encrypt(
     fs_ops::copy_dir_all(src, out_dir).await?;
 
     let start = Instant::now();
-    let mut total_bytes = 0u64;
-    let total_files = decrypted.len();
+    let effective_key = key.unwrap_or(&[0u8; 8]).clone();
 
-    for (idx, fname) in decrypted.iter().enumerate() {
-        if !details {
-            if let Some(pb) = pb {
-                pb.set_message(format!("{}", fname));
-            }
+    let progress_callback: Option<Arc<dyn Fn(u64) + Send + Sync>> = if !details {
+        if let Some(pb) = pb {
+            let pb = pb.clone();
+            Some(Arc::new(move |_processed| {
+                pb.inc(1);
+            }))
+        } else {
+            None
         }
-        let file_path = out_dir.join("db").join(fname);
-        let data = fs::read(&file_path).await?;
-        let enc = crypto::encrypt_data(&data, key.unwrap_or(&[0u8; 8]));
-        fs::write(&file_path, &enc).await?;
+    } else {
+        None
+    };
 
-        if details {
-            total_bytes += data.len() as u64;
-            let elapsed = start.elapsed().as_secs_f64();
-            let speed_mb = if elapsed > 0.0 {
-                total_bytes as f64 / elapsed / 1_000_000.0
-            } else {
-                0.0
-            };
-            eprintln!(
-                "[{}/{}] {} ({}: {:.2} MB/s, {}: {:.2} MB)",
-                idx + 1,
-                total_files,
-                fname,
-                t!("disk_speed"),
-                speed_mb,
-                t!("total_files"),
-                total_bytes as f64 / 1_000_000.0
-            );
-        } else if let Some(pb) = pb {
-            pb.inc(1);
-        }
-    }
+    let engine = CryptDewIoEngine::new();
+    engine
+        .encrypt_files(src, out_dir, decrypted, effective_key, progress_callback)
+        .await?;
 
-    if !details {
-        // 加密后不需要做 sanity 检查（仅解密时验证）
+    if details {
+        let elapsed = start.elapsed().as_secs_f64();
+        eprintln!(
+            "Encryption details: {:.2} s elapsed",
+            elapsed
+        );
     } else {
         eprintln!();
     }
 
+    // 打包输出
     match pack_mode {
         PackMode::Copy => {
             ui::println_info(&t!("enc_success", path = out_dir.display().to_string()));
