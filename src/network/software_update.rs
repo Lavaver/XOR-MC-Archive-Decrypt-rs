@@ -50,7 +50,7 @@ pub async fn check_for_updates() -> Result<Option<String>> {
     let current_version = semver::Version::parse(env!("CARGO_PKG_VERSION"))
         .expect(t!("is_not_semver").as_ref());   // 编译时自动获取，无需手动写死
 
-    let (tag, _) = tokio::task::spawn_blocking(move || {
+    let (tag, _, _) = tokio::task::spawn_blocking(move || {
         fetch_latest_release_info_sync("Lavaver", "Crypt-Dew-World")
     }).await??;
 

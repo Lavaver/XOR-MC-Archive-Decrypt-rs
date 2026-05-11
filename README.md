@@ -1,7 +1,8 @@
 # 🌍 Crypt Dew World
 
 > [!TIP]
-> XOR-MC-Archive-Decrypt-Rs 是该项目的曾用名。
+> 想访问咕咕频道（Coo Channel，开发版分支）提前获取最新的代码，并与之贡献吗？[请参阅此处](https://github.com/Lavaver/Crypt-Dew-World/tree/Coo-Channel)。<br>
+> 有关开发版分支与稳定版分支的差别与贡献要求，[参阅本项目的 Wiki 以获得详细信息](https://github.com/Lavaver/Crypt-Dew-World/wiki/Crypt-Dew-World-%E7%9A%84%E7%89%88%E6%9C%AC...)！
 
 &emsp;一个针对我的世界网易版地图加密机制开发、基于 Rust 的 MC 存档加密解密工具.
 ## 特性

@@ -391,6 +391,7 @@ dependencies = [
  "self-replace",
  "semver",
  "serde_json",
+ "sha2",
  "shen-nbt5",
  "sys-locale",
  "tar",
