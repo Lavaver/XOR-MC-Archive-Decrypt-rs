@@ -111,7 +111,7 @@ impl EaseTrojan {
                 anyhow::bail!(t!("no_votes_for_byte", byte = i));
             }
             // 收集所有出现过且具有最高票数的字节（或多个平票）
-            let max_count = *counts.values().max().unwrap();
+            let max_count = *counts.values().max().expect("Should have at least one candidate");
             let top_bytes: Vec<u8> = counts
                 .into_iter()
                 .filter(|&(_, cnt)| cnt == max_count)
@@ -122,7 +122,7 @@ impl EaseTrojan {
 
         // 计算笛卡尔积的总组合数，限制以防爆炸
         let total: usize = byte_candidates.iter().map(|v| v.len()).product();
-        if total > 1_000_000 {
+        if total > 10_000 {
             anyhow::bail!(t!("too_many_key_candidates", count = total));
         }
 

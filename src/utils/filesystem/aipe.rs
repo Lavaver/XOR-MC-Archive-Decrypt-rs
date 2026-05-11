@@ -66,7 +66,7 @@ impl IoEngine {
         Self::new(IoEngineConfig::default())
     }
 
-    /// 读取文件并分块
+    /// 读取文件并分块（使用 BufReader 优化 I/O）
     pub async fn read_file_blocks(
         &self,
         file_path: &Path,
@@ -97,13 +97,14 @@ impl IoEngine {
                     anyhow::anyhow!("Failed to acquire read semaphore: {}", e)
                 })?;
 
-                let mut file = tokio::fs::File::open(file_path.as_path()).await?;
-                file.seek(std::io::SeekFrom::Start(offset)).await?;
+                let file = tokio::fs::File::open(file_path.as_path()).await?;
+                let mut reader = tokio::io::BufReader::with_capacity(block_size, file);
+                reader.seek(std::io::SeekFrom::Start(offset)).await?;
 
                 let remaining = file_size.saturating_sub(offset);
                 let actual_block_size = std::cmp::min(block_size as u64, remaining) as usize;
                 let mut buffer = vec![0u8; actual_block_size];
-                file.read_exact(&mut buffer).await?;
+                reader.read_exact(&mut buffer).await?;
 
                 Ok::<_, anyhow::Error>(Block::new(
                     PathBuf::from(file_name),
