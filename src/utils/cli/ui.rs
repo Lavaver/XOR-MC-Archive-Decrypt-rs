@@ -68,7 +68,7 @@ pub fn create_progress_bar(len: u64, msg: &str) -> ProgressBar {
     let pb = ProgressBar::new(len);
     let style = ProgressStyle::default_bar()
         .template("{msg} [{bar:30.cyan/blue}] {pos}/{len} [{elapsed_us} / {eta_us}]")
-        .unwrap()
+        .expect("Progress bar template should be valid")
         .progress_chars("=>-")
         .with_key("elapsed_us", |state: &ProgressState, w: &mut dyn std::fmt::Write| {
             let _ = write!(w, "{}", format_duration_us(state.elapsed()));
@@ -89,7 +89,7 @@ pub fn add_progress_bar(multi: &MultiProgress, len: u64, msg: String) -> Progres
     let pb = multi.add(ProgressBar::new(len));
     let style = ProgressStyle::default_bar()
         .template("{msg} [{bar:30.cyan/blue}] {pos}/{len} [{elapsed_us} / {eta_us}]")
-        .unwrap()
+        .expect("Progress bar template should be valid")
         .progress_chars("=>-")
         .with_key("elapsed_us", |state: &ProgressState, w: &mut dyn std::fmt::Write| {
             let _ = write!(w, "{}", format_duration_us(state.elapsed()));
@@ -615,9 +615,12 @@ pub async fn process_batch(base_path: &Path, cli: &Cli) -> Result<()> {
                 if let Some(pb) = pb.as_ref() {
                     pb.finish_with_message("失败");
                 }
+                let file_name = save_path.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| t!("unknown_file").to_string());
                 println_error(&format!(
                     "处理错误 {}: {}",
-                    save_path.file_name().unwrap().to_string_lossy(),
+                    file_name,
                     e
                 ));
             } else {

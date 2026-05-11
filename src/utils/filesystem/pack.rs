@@ -54,7 +54,8 @@ pub async fn pack_mcworld_output(src_dir: &Path, output_file: &Path) -> Result<(
             }
             let name = path.strip_prefix(&src)?;
             writer.start_file(name.to_string_lossy(), options)?;
-            std::io::copy(&mut std::fs::File::open(path)?, &mut writer)?;
+            let mut src_file = std::fs::File::open(path)?;
+            std::io::copy(&mut src_file, &mut writer)?;
         }
         writer.finish()?;
         Ok(())

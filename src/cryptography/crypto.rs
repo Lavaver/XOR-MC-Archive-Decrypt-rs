@@ -12,6 +12,11 @@ pub fn is_encrypted(buf: &[u8]) -> bool {
 }
 
 /// 加密数据，返回带魔数的完整加密字节
+/// 
+/// # Security Note
+/// 此函数使用简单的 XOR 加密，仅提供基本的混淆保护。
+/// XOR 加密在密码学上是不安全的，不应被视为强加密方案。
+/// 它主要用于防止未经授权的直接访问，而不是提供真正的安全保障。
 pub fn encrypt_data(data: &[u8], key: &[u8; 8]) -> Vec<u8> {
     let effective_key: &[u8] = if key == &[0u8; 8] { &DEFAULT_KEY[..] } else { key };
     let mut out = vec![0x80, 0x1D, 0x30, 0x01];
@@ -24,6 +29,10 @@ pub fn encrypt_data(data: &[u8], key: &[u8; 8]) -> Vec<u8> {
 }
 
 /// 解密数据（输入必须包含魔数前缀）
+/// 
+/// # Security Note
+/// 此函数使用简单的 XOR 解密，对应于 `encrypt_data` 的加密方案。
+/// XOR 加密在密码学上是不安全的，仅供特定用途使用。
 pub fn decrypt_data(data: &[u8], key: &[u8; 8]) -> Result<Vec<u8>> {
     if !is_encrypted(data) {
         bail!("Data is not encrypted (magic mismatch)");

@@ -133,7 +133,9 @@ pub async fn ldb_sanity_check(save_path: &Path) -> bool {
                         return false;
                     }
                     let last8 = &data[data.len() - 8..];
-                    let val = u64::from_be_bytes(last8.try_into().unwrap());
+                    let val = match u64::from_be_bytes(last8.try_into().expect("Failed to convert last 8 bytes to u64")) {
+                        v => v,
+                    };
                     if val != expect {
                         return false;
                     }
